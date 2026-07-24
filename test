@@ -1,26 +1,4 @@
---[[
-    Simple Roblox UI Library
-    Components: Window, Toggle, Button, Label, Notify, Dropdown, MultiDropdown, Slider, Textbox
-    Settings Save/Load via writefile/readfile (executor environment) with JSONEncode/Decode fallback.
 
-    USAGE EXAMPLE (bottom of file, commented out):
-    local UI = loadstring(readfile("UILibrary.lua"))()  -- or require if you turn this into a ModuleScript
-    local Window = UI:CreateWindow("My Hub")
-    local Tab = Window:CreateTab("Main")
-
-    Tab:AddLabel("Welcome to the hub")
-    Tab:AddButton("Click me", function() print("clicked") end)
-    Tab:AddToggle("MyToggle", false, function(v) print("toggle", v) end)
-    Tab:AddSlider("Speed", 16, 100, 16, function(v) print("speed", v) end)
-    Tab:AddTextbox("Username", "", function(v) print("text", v) end)
-    Tab:AddDropdown("Mode", {"Easy","Medium","Hard"}, "Easy", function(v) print("mode", v) end)
-    Tab:AddMultiDropdown("Features", {"ESP","Aimbot","Fly"}, {}, function(v) print(v) end)
-
-    UI:Notify("Welcome", "Loaded successfully!", 3)
-
-    -- Settings are auto-saved to a file whenever a controlled element changes,
-    -- and auto-loaded on CreateWindow if a save file exists.
-]]
 
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -257,15 +235,107 @@ function Library:CreateWindow(title, opts)
     })
     self.NotifyHolder = NotifyHolder
 
-    -- toggle UI visibility with RightControl (common pattern)
+    -- toggle UI visibility with a configurable keybind (default RightControl)
+    self.ToggleKey = Enum.KeyCode[self.Settings:Get("_ToggleKeybind", "RightControl")] or Enum.KeyCode.RightControl
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
-        if input.KeyCode == Enum.KeyCode.RightControl then
+        if input.KeyCode == self.ToggleKey then
             Main.Visible = not Main.Visible
         end
     end)
 
     return self
+end
+
+--=========================================================
+-- CONFIRM DIALOG (Yes / No)
+--=========================================================
+function Library:Confirm(title, text, onYes, onNo)
+    local Overlay = make("Frame", {
+        Name = "ConfirmOverlay",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.5,
+        ZIndex = 50,
+        Parent = self.ScreenGui,
+    })
+
+    local Box = make("Frame", {
+        Size = UDim2.new(0, 300, 0, 140),
+        Position = UDim2.new(0.5, -150, 0.5, -70),
+        BackgroundColor3 = Theme.Section,
+        BorderSizePixel = 0,
+        ZIndex = 51,
+        Parent = Overlay,
+    })
+    corner(Box, 8)
+    stroke(Box, Theme.Stroke, 1)
+
+    make("TextLabel", {
+        Text = title,
+        Font = Enum.Font.GothamBold,
+        TextSize = 15,
+        TextColor3 = Theme.Text,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -20, 0, 24),
+        Position = UDim2.new(0, 10, 0, 14),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 51,
+        Parent = Box,
+    })
+    make("TextLabel", {
+        Text = text,
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        TextColor3 = Theme.SubText,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -20, 0, 40),
+        Position = UDim2.new(0, 10, 0, 42),
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 51,
+        Parent = Box,
+    })
+
+    local YesBtn = make("TextButton", {
+        Text = "Yes",
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        BackgroundColor3 = Theme.Accent,
+        AutoButtonColor = false,
+        Size = UDim2.new(0.45, -5, 0, 32),
+        Position = UDim2.new(0, 10, 1, -44),
+        ZIndex = 51,
+        Parent = Box,
+    })
+    corner(YesBtn, 6)
+
+    local NoBtn = make("TextButton", {
+        Text = "No",
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        BackgroundColor3 = Theme.Element,
+        AutoButtonColor = false,
+        Size = UDim2.new(0.45, -5, 0, 32),
+        Position = UDim2.new(0.55, -5, 1, -44),
+        ZIndex = 51,
+        Parent = Box,
+    })
+    corner(NoBtn, 6)
+    stroke(NoBtn, Theme.Stroke, 1)
+
+    YesBtn.MouseButton1Click:Connect(function()
+        Overlay:Destroy()
+        if onYes then onYes() end
+    end)
+    NoBtn.MouseButton1Click:Connect(function()
+        Overlay:Destroy()
+        if onNo then onNo() end
+    end)
+
+    return Overlay
 end
 
 function Library:Notify(title, text, duration)
@@ -812,6 +882,104 @@ function TabMethods:AddMultiDropdown(key, options, default, callback)
 
     commit()
     return Holder
+end
+
+-- KEYBIND (used for things like the UI toggle key)
+function TabMethods:AddKeybind(key, default, callback)
+    callback = callback or function() end
+    local settings = self.Library.Settings
+    local current = settings:Get(key, default or "RightControl")
+
+    local Holder = make("Frame", {
+        Size = UDim2.new(1, -10, 0, 34),
+        BackgroundColor3 = Theme.Element,
+        Parent = self.Page,
+    })
+    corner(Holder, 6)
+    stroke(Holder, Theme.Stroke, 1)
+
+    make("TextLabel", {
+        Text = key,
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.5, -10, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = Holder,
+    })
+
+    local BindBtn = make("TextButton", {
+        Text = current,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 12,
+        TextColor3 = Theme.Accent,
+        BackgroundColor3 = Theme.Section,
+        AutoButtonColor = false,
+        Size = UDim2.new(0.4, 0, 0, 24),
+        Position = UDim2.new(0.6, 0, 0.5, -12),
+        Parent = Holder,
+    })
+    corner(BindBtn, 4)
+
+    local listening = false
+    BindBtn.MouseButton1Click:Connect(function()
+        if listening then return end
+        listening = true
+        BindBtn.Text = "..."
+        tween(BindBtn, {BackgroundColor3 = Theme.Accent})
+
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(input, gpe)
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                current = input.KeyCode.Name
+                BindBtn.Text = current
+                tween(BindBtn, {BackgroundColor3 = Theme.Section})
+                settings:Set(key, current)
+                callback(current)
+                listening = false
+                conn:Disconnect()
+            end
+        end)
+    end)
+
+    callback(current)
+    return Holder
+end
+
+-- EXIT BUTTON (with Yes/No confirm dialog)
+function TabMethods:AddExitButton(text, promptTitle, promptText)
+    text = text or "Exit UI"
+    promptTitle = promptTitle or "Close UI"
+    promptText = promptText or "Are you sure you want to close?"
+
+    local lib = self.Library
+    local Btn = make("TextButton", {
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        BackgroundColor3 = Color3.fromRGB(190, 60, 60),
+        AutoButtonColor = false,
+        Size = UDim2.new(1, -10, 0, 34),
+        Parent = self.Page,
+    })
+    corner(Btn, 6)
+    stroke(Btn, Theme.Stroke, 1)
+
+    Btn.MouseEnter:Connect(function() tween(Btn, {BackgroundColor3 = Color3.fromRGB(215, 70, 70)}) end)
+    Btn.MouseLeave:Connect(function() tween(Btn, {BackgroundColor3 = Color3.fromRGB(190, 60, 60)}) end)
+
+    Btn.MouseButton1Click:Connect(function()
+        lib:Confirm(promptTitle, promptText, function()
+            lib.ScreenGui:Destroy()
+        end, function()
+            -- "No" clicked, do nothing, dialog just closes
+        end)
+    end)
+
+    return Btn
 end
 
 return Library
